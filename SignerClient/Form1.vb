@@ -17,11 +17,9 @@ Public Class Form1
         Dim ClientInstance As New Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
         ClientInstance.Connect(TextBox2.Text, CInt(TextBox3.Text))
         ' Construct request header.
-        Dim SigBuff() As Byte = Encoding.ASCII.GetBytes("Sign Request #ZT")
-        Dim CntBuff() As Byte = BitConverter.GetBytes(CInt(fs.Length))
         Dim RequestHeader(19) As Byte
-        Array.Copy(SigBuff, 0, RequestHeader, 0, 16)
-        Array.Copy(CntBuff, 0, RequestHeader, 16, 4)
+        Array.Copy(Encoding.ASCII.GetBytes("Sign Request #ZT"), 0, RequestHeader, 0, 16)
+        Array.Copy(BitConverter.GetBytes(CInt(fs.Length)), 0, RequestHeader, 16, 4)
         ' Send the request header.
         Dim SendCounter As Integer = 0
         Do While SendCounter < 20

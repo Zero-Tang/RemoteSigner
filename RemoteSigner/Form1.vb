@@ -89,20 +89,30 @@ Public Class Form1
             ' Close the file to let Signer gain full access.
             fs.Close()
             Dim SignerProcess As New Process()
-            SignerProcess.StartInfo.FileName = TextBox1.Text
-            SignerProcess.StartInfo.Arguments = String.Format("Sign /r ""{0}"" /f ""{1}""", RuleName, FilePath)
-            AddStringToLog("Calling signer with arguments " & SignerProcess.StartInfo.Arguments)
-            SignerProcess.Start()           ' Start signing...
-            SignerProcess.WaitForExit()     ' Wait for signing...
+            With SignerProcess.StartInfo
+                .FileName = TextBox1.Text
+                .Arguments = String.Format("Sign /r ""{0}"" /f ""{1}"" /ac", RuleName, FilePath)
+                .RedirectStandardOutput = True
+                .CreateNoWindow = True
+                .UseShellExecute = False
+            End With
+            With SignerProcess
+                AddHandler .OutputDataReceived, Sub(sender As Object, e As DataReceivedEventArgs)
+                                                    If String.IsNullOrEmpty(e.Data) = False Then
+                                                        AddStringToLog(vbCrLf & "> " & e.Data)
+                                                    End If
+                                                End Sub
+                .Start()           ' Start signing...
+                .BeginOutputReadLine()
+                .WaitForExit()     ' Wait for signing...
+            End With
             ' Open the file since signing is completed.
             fs = New FileStream(FilePath, FileMode.Open)
             If SignerProcess.ExitCode = 0 And fs.Length < &H7FFFFFFF Then
                 ' Send back the reply header.
-                Dim SigBuff() As Byte = Encoding.ASCII.GetBytes("Sign Reply #ZT-S")
-                Dim CntBuff() As Byte = BitConverter.GetBytes(CInt(fs.Length))
                 Dim ReplyHeader(19) As Byte
-                Array.Copy(SigBuff, 0, ReplyHeader, 0, 16)
-                Array.Copy(CntBuff, 0, ReplyHeader, 16, 4)
+                Array.Copy(Encoding.ASCII.GetBytes("Sign Reply #ZT-S"), 0, ReplyHeader, 0, 16)
+                Array.Copy(BitConverter.GetBytes(CInt(fs.Length)), 0, ReplyHeader, 16, 4)
                 Dim SendCounter As Integer = 0
                 AddStringToLog(String.Format("Sending back the signed executable. File Size={0} bytes" & vbCrLf, fs.Length))
                 Do While SendCounter < 20
@@ -120,11 +130,9 @@ Public Class Form1
             Else
                 ' Failed to sign the file.
                 ' Send back the reply header.
-                Dim SigBuff() As Byte = Encoding.ASCII.GetBytes("Sign Reply #ZT-F")
-                Dim CntBuff() As Byte = BitConverter.GetBytes(CInt(fs.Length))
                 Dim ReplyHeader(19) As Byte
-                Array.Copy(SigBuff, 0, ReplyHeader, 0, 16)
-                Array.Copy(CntBuff, 0, ReplyHeader, 16, 4)
+                Array.Copy(Encoding.ASCII.GetBytes("Sign Reply #ZT-F"), 0, ReplyHeader, 0, 16)
+                Array.Copy(BitConverter.GetBytes(CInt(fs.Length)), 0, ReplyHeader, 16, 4)
                 Dim SendCounter As Integer = 0
                 Do While SendCounter < 20
                     SendCounter += IncomingSocket.Send(ReplyHeader, SendCounter, 20 - SendCounter, SocketFlags.None)
